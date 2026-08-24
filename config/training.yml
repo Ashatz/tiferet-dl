@@ -1,0 +1,22 @@
+services:
+  load_dataset_event:
+    module_path: tiferet_dl.events.training
+    class_name: LoadDataset
+  train_epoch_event:
+    module_path: tiferet_dl.events.training
+    class_name: TrainEpoch
+
+features:
+  training:
+    linear_regression:
+      name: Linear Regression Training
+      description: Load a regression dataset and execute one gradient-descent epoch.
+      steps:
+        - name: Load regression dataset
+          service_id: load_dataset_event
+          data_key: dataset
+        - name: Train one gradient-descent epoch
+          service_id: train_epoch_event
+          params:
+            dataset: $r.dataset
+            learning_rate: 0.1
