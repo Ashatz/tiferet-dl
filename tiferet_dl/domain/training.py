@@ -6,7 +6,15 @@
 from pydantic import Field, model_validator
 
 # ** app
-from tiferet.domain import DomainObject
+from tiferet.domain import DomainObject, ModelError
+
+# *** constants
+
+# ** constant: empty_regression_dataset_id
+EMPTY_REGRESSION_DATASET_ID = 'EMPTY_REGRESSION_DATASET'
+
+# ** constant: misaligned_regression_observations_id
+MISALIGNED_REGRESSION_OBSERVATIONS_ID = 'MISALIGNED_REGRESSION_OBSERVATIONS'
 
 # *** models
 
@@ -41,11 +49,21 @@ class RegressionDataset(DomainObject):
 
         # Require at least one training observation.
         if not self.features:
-            raise ValueError('A regression dataset requires at least one feature.')
+            ModelError.raise_error(
+                EMPTY_REGRESSION_DATASET_ID,
+                message='A regression dataset requires at least one feature.',
+                model=self,
+            )
 
         # Require a target for every feature observation.
         if len(self.features) != len(self.targets):
-            raise ValueError('Regression features and targets must have equal lengths.')
+            ModelError.raise_error(
+                MISALIGNED_REGRESSION_OBSERVATIONS_ID,
+                message='Regression features and targets must have equal lengths.',
+                model=self,
+                feature_count=len(self.features),
+                target_count=len(self.targets),
+            )
 
         # Return the validated dataset.
         return self

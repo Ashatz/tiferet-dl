@@ -7,9 +7,9 @@ from pathlib import Path
 
 # ** infra
 import pytest
-from pydantic import ValidationError
 
 # ** app
+from tiferet.domain import ModelError
 from tiferet.events import DomainEvent
 
 from tiferet_dl.blueprints import run_training
@@ -18,6 +18,8 @@ from tiferet_dl.domain import (
     RegressionDataset,
 )
 from tiferet_dl.events import TrainEpoch
+from tiferet_dl.mappers import LinearRegressionModelAggregate
+from tiferet_dl.utils import GradientDescent
 
 # *** constants
 
@@ -71,8 +73,8 @@ def test_regression_dataset_rejects_misaligned_observations():
     RegressionDataset rejects observations that cannot form feature-target pairs.
     '''
 
-    # Verify mismatched observations fail domain validation.
-    with pytest.raises(ValidationError):
+    # Verify mismatched observations fail domain validation with a ModelError.
+    with pytest.raises(ModelError):
         RegressionDataset(
             features=[
                 1.0,
@@ -82,6 +84,62 @@ def test_regression_dataset_rejects_misaligned_observations():
                 2.0,
             ],
         )
+
+
+# ** test: regression_dataset_rejects_empty_features
+def test_regression_dataset_rejects_empty_features():
+    '''
+    RegressionDataset rejects an empty feature set with a ModelError.
+    '''
+
+    # Verify an empty feature set fails domain validation with a ModelError.
+    with pytest.raises(ModelError):
+        RegressionDataset(
+            features=[],
+            targets=[],
+        )
+
+
+# ** test: linear_regression_model_aggregate_applies_epoch
+def test_linear_regression_model_aggregate_applies_epoch():
+    '''
+    LinearRegressionModelAggregate mutates its own parameters in place using
+    the stateless GradientDescent utility.
+    '''
+
+    # Apply one epoch's update directly on the aggregate.
+    aggregate = LinearRegressionModelAggregate()
+    aggregate.apply_epoch(
+        features=TRAINING_DATA['features'],
+        targets=TRAINING_DATA['targets'],
+        learning_rate=0.1,
+    )
+
+    # Verify the aggregate mutated its own parameters for exactly one epoch.
+    assert aggregate.epochs_trained == 1
+    assert aggregate.weight > 0
+    assert aggregate.bias > 0
+    assert aggregate.loss > 0
+
+
+# ** test: gradient_descent_computes_loss_and_gradients
+def test_gradient_descent_computes_loss_and_gradients():
+    '''
+    GradientDescent computes loss and gradients from plain primitives only.
+    '''
+
+    # Compute loss and gradients for a perfectly-fit line (weight=2, bias=0).
+    result = GradientDescent.compute_loss_and_gradients(
+        features=TRAINING_DATA['features'],
+        targets=TRAINING_DATA['targets'],
+        weight=2.0,
+        bias=0.0,
+    )
+
+    # Verify a perfect fit yields zero loss and zero gradients.
+    assert result['loss'] == 0.0
+    assert result['weight_gradient'] == 0.0
+    assert result['bias_gradient'] == 0.0
 
 
 # ** test: config_declared_pipeline_runs_through_di

@@ -9,6 +9,7 @@ from ..domain import (
     LinearRegressionModel,
     RegressionDataset,
 )
+from ..mappers import LinearRegressionModelAggregate
 
 # *** events
 
@@ -90,32 +91,15 @@ class TrainEpoch(DomainEvent):
         # Normalize declarative YAML parameter values before numerical training.
         resolved_learning_rate = float(learning_rate)
 
-        # Calculate predictions and residuals from the current parameters.
-        predictions = [
-            current_model.predict(feature)
-            for feature in dataset.features
-        ]
-        residuals = [
-            prediction - target
-            for prediction, target in zip(predictions, dataset.targets)
-        ]
+        # Load the current parameters into a mutable aggregate for the update.
+        aggregate = LinearRegressionModelAggregate(**current_model.model_dump())
 
-        # Compute the mean squared loss and its gradients.
-        observation_count = len(dataset.features)
-        loss = sum(residual ** 2 for residual in residuals) / observation_count
-        weight_gradient = (
-            2 / observation_count
-            * sum(
-                residual * feature
-                for residual, feature in zip(residuals, dataset.features)
-            )
+        # Delegate the gradient-descent parameter update to the aggregate.
+        aggregate.apply_epoch(
+            features=dataset.features,
+            targets=dataset.targets,
+            learning_rate=resolved_learning_rate,
         )
-        bias_gradient = 2 / observation_count * sum(residuals)
 
-        # Return new immutable parameters after the single epoch update.
-        return LinearRegressionModel(
-            weight=current_model.weight - resolved_learning_rate * weight_gradient,
-            bias=current_model.bias - resolved_learning_rate * bias_gradient,
-            loss=loss,
-            epochs_trained=current_model.epochs_trained + 1,
-        )
+        # Return the mutated aggregate as this epoch's updated model.
+        return aggregate
